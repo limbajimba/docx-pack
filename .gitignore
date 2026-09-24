@@ -1,0 +1,8 @@
+scripts/node_modules/
+**/preview/*.pdf
+**/preview/fonts.conf
+**/preview/.fc-cache/
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store

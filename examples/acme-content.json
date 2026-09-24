@@ -1,0 +1,104 @@
+{
+  "meta": {
+    "title": "Acme Scheduling",
+    "kicker": "AI Defensibility Assessment  ·  Framework v2.0 structure  ·  worked example",
+    "date": "24 September 2026",
+    "right_lines": ["Public-record screen", "Not a portfolio company"],
+    "footer_title": "Acme Scheduling — AI Defensibility Assessment",
+    "subject": "Worked example for the docx-pack. All facts are invented."
+  },
+  "blocks": [
+    { "type": "title_band" },
+    { "type": "verdict", "text": "Acme Scheduling scores as a feature, not a company." },
+    { "type": "basis", "text": "Public course schedule and student planner for US colleges, fed by a one-way SQL export from the institution's student information system. No legal entity, founders, funding or headcount could be found; the domain was registered on 17 April 2026. Presumed founder-owned. Not a portfolio company." },
+    { "type": "basis", "text": "Basis: 45 dated, sourced public facts gathered on 22 September 2026 (evidence log in Appendix B); scored against the nine-area v2.0 structure and weights. Bands: Resilient 8.5+, Solid 7.0 to 8.4, Thin 5.5 to 6.9, Eroding below 5.5. N/E = not evidenced; the weight is renormalised across evidenced drivers." },
+    { "type": "h1", "text": "Scorecard" },
+    { "type": "kpis", "items": [
+      { "label": "Structural defensibility", "value": "4.9", "note": "Eroding", "tone": "bad" },
+      { "label": "AI execution", "value": "3.1", "note": "below 7.0 threshold" },
+      { "label": "Quadrant", "value": "Neither", "note": "threshold 7.0 on both axes", "text_value": true },
+      { "label": "Weakest evidenced area", "value": "B1  3.8", "note": "Data moat" },
+      { "label": "Coverage / evidence", "value": "94%", "note": "of weight evidenced; 69% on high-reliability sources" }
+    ] },
+    { "type": "image", "path": "acme-areas.png", "width_cm": 15.5 },
+    { "type": "basis", "text": "Weighted geometric mean 4.8; arithmetic minus geometric gap 0.2 (a wide gap means the weakness sits in one place). Strongest area C3 Unit economics at 8.7. Areas in the Eroding range (below 5.5): A2, A3, B1, B2, B3, C2." },
+    { "type": "h1", "text": "Company snapshot" },
+    { "type": "snapshot", "rows": [
+      ["Legal entity", "Not disclosed; no registry, Crunchbase or LinkedIn record"],
+      ["Age", "acmescheduling.example registered 17 Apr 2026"],
+      ["Team", "Not disclosed; demo requests route to a webmail address"],
+      ["Revenue", "Not disclosed; no evidence of a paid live deployment"],
+      ["Customers", "One named community college; three placeholder logos"],
+      ["Product", "Public schedule with planner and shareable cart; admin analytics marketed as 28 modules"],
+      ["Pricing", "Annual institutional contracts, no per-seat fees; three tiers, quote only"],
+      ["Compliance", "No VPAT, SOC 2, HECVAT, FERPA statement, privacy policy or terms published"]
+    ] },
+    { "type": "h1", "text": "Reading" },
+    { "type": "p", "text": "Acme Scheduling scores as a feature, not a company. It is a read-only presentation and analytics layer over the institution's student information system: data flows one way through a customer-run SQL export, the planner produces a shareable link rather than a registration, and the analytics are standard enrolment aggregations with CSV export [F11, F29, F33]. The status quo it replaces is a free static page [F3], SIS vendors already embed planners with registration write-back [F41], and a free consumer planner exists [F40]." },
+    { "type": "p", "text": "The company itself is barely visible. The domain is five months old [F20]; three of four logos on the site are placeholders [F17]; the only real customer name still links its legacy schedule pages for Fall 2026 [F14-F16]; demo requests go to a webmail address [F22]; there is no privacy policy, terms of service, VPAT, SOC 2 or HECVAT [F23-F25], which US higher-education procurement usually requires." },
+    { "type": "h3", "text": "What would prove this wrong" },
+    { "type": "p", "text": "A very young product should not be expected to have renewals, certifications or reviews; the framework measures the moat that exists today, and a design partner deal with the named college may be live behind the legacy links." },
+    { "type": "p", "text": "Flat institutional pricing with a near-zero cost base is a workable micro-SaaS model; the framework's low score speaks to defensibility, not to whether the founder can make a living." },
+    { "type": "h3", "text": "What moves the score" },
+    { "type": "p", "text": "A registration hand-off or write-back into Banner, Colleague or Elements would move A3.1 from 1 to 5 and A2.5 from 1 to 5 (+0.3 in total). A VPAT, HECVAT and SOC 2 report would lift B2.3 from 0 to 5 (+0.16) and remove a procurement blocker." },
+    { "type": "h1", "text": "Area findings" },
+    { "type": "basis", "text": "Each area shows its score out of 10, its weight in the headline and the share of its driver weight that public evidence allowed us to score. Bracketed references point to the evidence log in Appendix B." },
+    { "type": "finding", "code": "A1", "title": "Workflow & user replacement by AI agents", "meta": "7.0 / 10   ·   weight 11%   ·   coverage 100%",
+      "body": "Users are the registrar's office, academic advisors, leadership viewers and students [F27, F42, F43]. Tiers cap admin users at 3 to 5, 25 and 50, so seat pressure appears as a tier downgrade rather than churn [F6, F8]. The analytics half is a reporting layer with CSV export and scheduled emails that an agent with SIS access reproduces [F4, F33].",
+      "counter": "Students do not use agents to browse a schedule; the public page has a user population no automation removes.",
+      "gaps": "Registrar and scheduling headcount trends; seats in use at the named college." },
+    { "type": "finding", "code": "B1", "title": "Data moat", "meta": "3.8 / 10   ·   weight 12%   ·   coverage 75%",
+      "body": "First-party behavioural data (searches, filters, adds, conflicts) per institution surfaced as a Seat Demand Index and funnels [F30]; no cross-institution benchmark or data rights [F31]; at most one registration cycle of history [F20].",
+      "counter": "Demand signals across many colleges would be novel; no SIS vendor publishes them.",
+      "gaps": "Data-rights clauses; anonymisation; retention." },
+    { "type": "finding", "code": "C3", "title": "Unit economics & inference margin", "meta": "8.7 / 10   ·   weight 5%   ·   coverage 78%",
+      "body": "Serverless edge hosting and a static marketing site [F23, F25, F34]; no AI, so no inference cost; onboarding is a customer-run SQL push [F11]. Gross margin on a flat annual contract is close to the price.",
+      "counter": "A near-zero cost base is a property of stage as much as of design; a real SIS integration would add support cost.",
+      "gaps": "Hosting bill; support headcount; contract value at the named college." },
+    { "type": "h1", "text": "Diligence questions for management" },
+    { "type": "numbered", "items": [
+      "Which institutions are live on their own domain today, and which of the four logos are contracted customers?",
+      "Is a registration write-back into any SIS on the roadmap, and has any customer asked for it?",
+      "What compliance evidence (VPAT, HECVAT, SOC 2) exists or is in progress, and who owns it?"
+    ] },
+    { "type": "pagebreak" },
+    { "type": "h1", "text": "Appendix A  ·  Driver scores" },
+    { "type": "basis", "text": "Score is on the re-anchored scale of 22 September 2026. Ev. = evidence reliability (H high, M medium, L low). Eff. wt = the driver's share of the headline after renormalisation across evidenced drivers." },
+    { "type": "table", "size": "table_small",
+      "columns": [
+        { "header": "ID", "width": 600, "bold": true },
+        { "header": "Driver", "width": 2700 },
+        { "header": "Score", "width": 700, "align": "right", "bold": true },
+        { "header": "Prior", "width": 600, "align": "right" },
+        { "header": "Ev.", "width": 500, "align": "center" },
+        { "header": "Eff. wt", "width": 700, "align": "right" },
+        { "header": "Rationale and evidence", "width": 3838 }
+      ],
+      "rows": [
+        { "group": "A1 Workflow & user replacement by AI agents  —  area score 7.0, weight 11%, coverage 100%" },
+        ["A1.1", "User-role durability at buyers", { "text": "7.0", "color": "teal" }, "5.0", "M", "2.8%", "Registrars, advisors and students remain; no headcount evidence. [F27, F42, F43]"],
+        ["A1.2", "Agent substitution of the core workflow", "5.5", "3.0", "M", "2.8%", "An agent with SIS read access produces the same enrolment reports. [F4, F33]"],
+        ["A1.3", "Seat exposure of revenue", { "text": "8.4", "color": "teal" }, "7.0", "H", "2.8%", "Flat annual contracts; admin-user tiers are the only seat linkage. [F6, F8]"],
+        { "group": "B1 Data moat  —  area score 3.8, weight 12%, coverage 75%" },
+        ["B1.1", "Proprietary or exclusive data", { "text": "4.7", "color": "red" }, "2.0", "M", "3.0%", "First-party click data per institution; at most one registration cycle old. [F30, F20]"],
+        ["B1.2", "Contractual data rights", { "text": "N/E", "color": "muted" }, "N/E", "-", "3.0%", "No terms published. [F23]"],
+        ["B1.3", "Existing priced data product or benchmark", { "text": "3.0", "color": "red" }, "0.0", "H", "3.0%", "None. [F31]"]
+      ],
+      "note": "Weakest evidenced area in red. Drivers scored N/E carry no weight; their share is spread across the evidenced drivers in the same area." },
+    { "type": "h1", "text": "Appendix B  ·  Evidence log (extract)" },
+    { "type": "table",
+      "columns": [
+        { "header": "Tag", "width": 600, "bold": true },
+        { "header": "Source", "width": 3200 },
+        { "header": "Date", "width": 1300 },
+        { "header": "What it shows", "width": 4538 }
+      ],
+      "rows": [
+        ["F3", "Named college, legacy schedule page", "10 Sep 2026", "Free static HTML schedule still live for Fall 2026."],
+        ["F6", "acmescheduling.example/pricing", "10 Sep 2026", "Three tiers, annual, quote only; no per-seat fee."],
+        ["F11", "acmescheduling.example/integrations", "10 Sep 2026", "One-way SQL export; 'no middleware'."],
+        ["F20", "WHOIS record", "17 Apr 2026", "Domain registered."],
+        ["F23", "Site footer", "10 Sep 2026", "No privacy policy, terms, VPAT or SOC 2 link."]
+      ] }
+  ]
+}

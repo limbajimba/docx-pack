@@ -1,0 +1,9 @@
+{
+  "name": "docx-pack-scripts",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Builders for the docx-pack: style-spec + content JSON -> .docx",
+  "dependencies": {
+    "docx": "^9.7.1"
+  }
+}

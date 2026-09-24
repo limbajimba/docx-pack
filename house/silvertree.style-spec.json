@@ -1,0 +1,58 @@
+{
+  "name": "silvertree",
+  "source": "Codified from AI_Defensibility_Mappify_Sep2026 (docx-js build, 11 Sep 2026); roles checked against the rendered pages.",
+  "roles_checked_by_eye": true,
+  "org": "SilverTree Equity",
+  "page": {
+    "size": "A4",
+    "width_dxa": 11906,
+    "height_dxa": 16838,
+    "margins_dxa": { "top": 1250, "right": 1134, "bottom": 1100, "left": 1134, "header": 500, "footer": 500 }
+  },
+  "font": { "body": "Gill Sans MT", "preview_alias": "Gill Sans" },
+  "colors": {
+    "ink": "2E3232",
+    "muted": "646A7A",
+    "navy": "132246",
+    "teal": "0B4E6F",
+    "slate": "44596D",
+    "red": "C0392B",
+    "rule": "E9EBEB",
+    "fill": "F2F2F2",
+    "white": "FFFFFF",
+    "link": "0563C1"
+  },
+  "sizes_pt": {
+    "body": 10, "small": 7.5, "tiny": 7, "caption": 8, "meta": 8.5,
+    "h1": 12, "h2": 10, "h3": 10, "title": 17, "kicker": 8, "date": 10,
+    "kpi": 15, "kpi_text": 10, "verdict": 10.5,
+    "table": 8, "table_small": 7.5, "footer": 8, "header": 7.5, "callout": 9, "gaps": 8
+  },
+  "spacing_dxa": {
+    "body_after": 140, "body_line": 276, "tight_after": 60,
+    "h1_before": 320, "h1_after": 140,
+    "h2_before": 200, "h2_after": 60,
+    "h3_before": 120, "h3_after": 80,
+    "small_line": 240, "small_after": 80,
+    "after_table": 100
+  },
+  "header": { "logo": "silvertree-logo.png", "logo_cm": [2.86, 1.06], "right_text": "STRICTLY CONFIDENTIAL", "rule": { "color": "rule", "sz": 4, "space": 4 } },
+  "footer": { "left": "{footer_title}  |  Strictly confidential  |  {org}", "page": "Page {PAGE} of {NUMPAGES}", "rule": { "color": "rule", "sz": 4, "space": 4 } },
+  "metadata": { "creator": "SilverTree Equity", "lastModifiedBy": "SilverTree Equity", "company": "SilverTree Equity", "application": "Microsoft Office Word" },
+  "components": {
+    "title_band": { "fill": "navy", "text": "white", "right_col_dxa": 2638, "cell_margins": { "top": 200, "bottom": 200, "left": 220, "right": 90 } },
+    "verdict_bar": { "fill": "teal", "text": "white", "cell_margins": { "top": 130, "bottom": 130, "left": 220, "right": 220 } },
+    "kpi_tiles": { "fill": "fill", "top_border": { "color": "navy", "sz": 24 }, "gap_border": { "color": "white", "sz": 12 }, "label": "muted", "value": "navy", "bad": "red", "good": "teal", "note": "ink", "cell_margins": { "top": 90, "bottom": 110, "left": 120, "right": 100 } },
+    "h1": { "color": "navy", "bold": true, "rule": { "color": "navy", "sz": 6, "space": 3 } },
+    "h2": { "color": "navy", "bold": true, "rule": { "color": "rule", "sz": 4, "space": 2 }, "meta_color": "muted", "meta_size": "small" },
+    "h3": { "color": "navy", "bold": true },
+    "snapshot": { "label_color": "navy", "label_dxa": 2400, "zebra": "fill", "row_border": { "style": "dotted", "color": "rule", "sz": 4 }, "cell_margins": { "top": 45, "bottom": 45, "left": 80, "right": 80 } },
+    "table": { "header_fill": "navy", "header_text": "white", "group_fill": "teal", "group_text": "white", "zebra": "fill", "row_border": { "style": "dotted", "color": "rule", "sz": 4 }, "cell_margins": { "top": 45, "bottom": 45, "left": 80, "right": 80 } },
+    "callouts": {
+      "counter": { "label": "Counter:", "color": "red", "size": "callout", "italic_text": true },
+      "gaps": { "label": "Gaps:", "color": "muted", "size": "gaps", "italic_text": false }
+    },
+    "basis": { "color": "muted", "size": "small" },
+    "bullets": { "char": "•", "indent_left": 540, "hanging": 260 }
+  }
+}

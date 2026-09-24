@@ -1,0 +1,15 @@
+{
+  "title": "Area scores, 0 to 10 (weight in headline)",
+  "max": 10, "threshold": 7.0, "threshold_label": "7.0 Solid floor / quadrant threshold",
+  "rows": [
+    {"label": "A1 Workflow & user replacement  (11%)", "value": 7.0},
+    {"label": "A2 Bypass & insourcing  (9%)", "value": 4.2},
+    {"label": "A3 Orchestration vs intelligence  (18%)", "value": 4.1},
+    {"label": "B1 Data moat  (12%)", "value": 3.8, "flag": true},
+    {"label": "B2 Domain complexity  (16%)", "value": 4.2},
+    {"label": "B3 Switching costs & network  (10%)", "value": 4.0},
+    {"label": "C1 Pricing & revenue architecture  (12%)", "value": 6.6},
+    {"label": "C2 Competitive & platform displacement  (7%)", "value": 4.2},
+    {"label": "C3 Unit economics & inference  (5%)", "value": 8.7}
+  ]
+}
