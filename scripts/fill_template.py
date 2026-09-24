@@ -137,6 +137,8 @@ def main():
     ap.add_argument("--template", required=True); ap.add_argument("--content", required=True); ap.add_argument("--out", required=True)
     ap.add_argument("--keep-body", action="store_true", help="append after the template's existing body instead of replacing it")
     ap.add_argument("--placeholders", help="JSON map of literal tokens to replace anywhere, e.g. {\"{{date}}\": \"...\"}")
+    ap.add_argument("--creator", help="document creator/company for the metadata step (runs set_metadata.py)")
+    ap.add_argument("--company")
     a = ap.parse_args()
     src = dotx_to_docx(a.template) if a.template.lower().endswith(".dotx") else a.template
     doc = Document(src)
@@ -215,7 +217,14 @@ def main():
     print(f"wrote {a.out} from template {os.path.basename(a.template)}; table style: {tstyle}")
     if fallbacks:
         print("styles missing in template (fell back to direct formatting): " + ", ".join(sorted(set(fallbacks))))
-    print("next: python3 scripts/set_metadata.py to set creator/company; bash scripts/render_preview.sh to look at it")
+    if a.creator:
+        import subprocess
+        cmd = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "set_metadata.py"), a.out, "--creator", a.creator, "--company", a.company or a.creator]
+        if meta.get("title"): cmd += ["--title", meta["title"]]
+        subprocess.run(cmd, check=False)
+    else:
+        print("metadata: pass --creator/--company, or run scripts/set_metadata.py before sending")
+    print("next: bash scripts/render_preview.sh to look at every page; python3 scripts/lint_docx.py")
 
 
 if __name__ == "__main__":

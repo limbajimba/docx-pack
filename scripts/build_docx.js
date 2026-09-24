@@ -110,9 +110,9 @@ const B = {
     const k = CMP.kpi_tiles, ws = splitEven(b.items.length, TEXT_W);
     const bd = { top: border(BorderStyle.SINGLE, k.top_border.color, k.top_border.sz), bottom: NONE, left: border(BorderStyle.SINGLE, k.gap_border.color, k.gap_border.sz), right: border(BorderStyle.SINGLE, k.gap_border.color, k.gap_border.sz) };
     const cells = b.items.map((it, i) => cell([
-      P(it.label, { size: "tiny", color: k.label, caps: true, after: 60, line: 240 }),
-      P(it.value, { size: it.text_value ? "kpi_text" : "kpi", color: it.tone === "bad" ? k.bad : it.tone === "good" ? k.good : k.value, bold: true, after: 40, line: 240 }),
-      P(it.note || "", { size: "small", color: k.note, after: 0, line: 220 }),
+      P(it.label, { size: "tiny", color: k.label, caps: true, after: 60, line: 240, keepNext: true }),
+      P(it.value, { size: it.text_value ? "kpi_text" : "kpi", color: it.tone === "bad" ? k.bad : it.tone === "good" ? k.good : k.value, bold: true, after: 40, line: 240, keepNext: true }),
+      P(it.note || "", { size: "small", color: k.note, after: 0, line: 220, keepNext: true }),
     ], ws[i], { fill: k.fill, margins: k.cell_margins, borders: bd }));
     return [table([new TableRow({ children: cells })], ws), spacer(SP.after_table)];
   },
@@ -143,9 +143,10 @@ const B = {
   snapshot(b) {
     const s = CMP.snapshot, lw = s.label_dxa, vw = TEXT_W - lw;
     const bd = { top: NONE, left: NONE, right: NONE, bottom: { style: BorderStyle.DOTTED, color: C(s.row_border.color), size: s.row_border.sz } };
+    const keep = b.rows.length <= 12;  // short tables stay on one page; long ones may break
     const rows = b.rows.map(([l, v], i) => new TableRow({ cantSplit: true, children: [
-      cell(P(l, { size: "meta", color: s.label_color, bold: true, after: 0, line: 240 }), lw, { fill: i % 2 ? s.zebra : undefined, margins: s.cell_margins, borders: bd }),
-      cell(P(v, { size: "meta", after: 0, line: 240 }), vw, { fill: i % 2 ? s.zebra : undefined, margins: s.cell_margins, borders: bd }),
+      cell(P(l, { size: "meta", color: s.label_color, bold: true, after: 0, line: 240, keepNext: keep && i < b.rows.length - 1 }), lw, { fill: i % 2 ? s.zebra : undefined, margins: s.cell_margins, borders: bd }),
+      cell(P(v, { size: "meta", after: 0, line: 240, keepNext: keep && i < b.rows.length - 1 }), vw, { fill: i % 2 ? s.zebra : undefined, margins: s.cell_margins, borders: bd }),
     ] }));
     return [table(rows, [lw, vw]), spacer(SP.after_table)];
   },
@@ -172,9 +173,12 @@ const B = {
   },
   callout(b) {
     const c = CMP.callouts[b.kind] || { label: b.label, color: b.color || "ink", size: "callout" };
+    const label = b.label || c.label;
+    // Authors often type the label into the text as well ("Counter: Counter: ..."); keep one.
+    const text = String(b.text).replace(new RegExp("^\\s*" + label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "");
     return [new Paragraph({ spacing: { before: 0, after: b.after ?? 40, line: SP.body_line }, children: [
-      new TextRun({ font: FONT, size: HP(c.size), color: C(c.color), bold: true, text: (b.label || c.label) + " " }),
-      ...runs(b.text, { size: c.size, color: c.color, italic: c.italic_text }),
+      new TextRun({ font: FONT, size: HP(c.size), color: C(c.color), bold: true, text: label + " " }),
+      ...runs(text, { size: c.size, color: c.color, italic: c.italic_text }),
     ] })];
   },
   finding(b) {
@@ -227,4 +231,17 @@ const doc = new Document({
     headers: { default: header() }, footers: { default: footer() }, children,
   }],
 });
-Packer.toBuffer(doc).then((buf) => { fs.mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true }); fs.writeFileSync(args.out, buf); console.log(`wrote ${args.out} (${content.blocks.length} blocks, ${(buf.length / 1024).toFixed(0)} KB)`); });
+Packer.toBuffer(doc).then((buf) => {
+  fs.mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true });
+  fs.writeFileSync(args.out, buf);
+  console.log(`wrote ${args.out} (${content.blocks.length} blocks, ${(buf.length / 1024).toFixed(0)} KB)`);
+  // Metadata: docx-js leaves app.xml empty and cannot set Company/Application; finish with set_metadata.py.
+  if (!("no-metadata" in args)) {
+    const md = spec.metadata || {};
+    const r = require("child_process").spawnSync("python3", [path.join(__dirname, "set_metadata.py"), args.out,
+      "--creator", md.creator || spec.org || "", "--company", md.company || spec.org || "", "--last-modified-by", md.lastModifiedBy || md.creator || spec.org || "",
+      "--application", md.application || "Microsoft Office Word", ...(meta.title ? ["--title", meta.title] : []), ...(meta.subject ? ["--subject", meta.subject] : [])], { encoding: "utf8" });
+    process.stdout.write(r.status === 0 ? r.stdout : `set_metadata failed: ${r.stderr}\n`);
+  }
+  console.log(`next: bash scripts/render_preview.sh ${args.out} && python3 scripts/lint_docx.py ${args.out} --spec ${args.spec}`);
+});

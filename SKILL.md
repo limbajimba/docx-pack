@@ -27,7 +27,8 @@ Pack root: `~/Projects/docx-pack` (this file's directory). Run scripts from the 
 4. **Render and look**: `bash scripts/render_preview.sh out.docx preview/ 80`, then Read every page JPEG against
    `references/visual-review.md`. Heed the font WARNING: it means the preview, not the document, is wrong.
 5. **Lint**: `python3 scripts/lint_docx.py out.docx --spec <spec>`. Zero FAIL; each WARN a deliberate choice.
-6. **Metadata**: `python3 scripts/set_metadata.py out.docx --creator "SilverTree Equity" --company "SilverTree Equity" --title "..."`.
+6. **Metadata**: the spec build sets it from `spec.metadata`; the fill path needs `--creator "SilverTree Equity" --company "SilverTree Equity"`;
+   any other file: `python3 scripts/set_metadata.py out.docx --creator ... --company ... --title ...`. Lint reports it when missing.
 7. Fix content or spec (never the .docx by hand), rebuild from step 2, re-render. Two or three loops is normal.
 
 ## Content blocks (quick reference)
@@ -43,7 +44,7 @@ Pack root: `~/Projects/docx-pack` (this file's directory). Run scripts from the 
 | `p`, `bullets`, `numbered` | prose (`**bold**`, `*italic*` inline), one-sentence list items |
 | `snapshot` | two-column label/value table |
 | `table` | `columns [{header,width,align,bold}]`, `rows` of strings or `{text,color,bold,align}`, `{group}` rows, `note`, `size: table_small` |
-| `finding` | `code, title, meta, body, counter, gaps` composed from h2 + p + callouts |
+| `finding` | `code, title, meta, body, counter, gaps` composed from h2 + p + callouts; `counter`/`gaps` carry the sentence only, the builder adds the label |
 | `callout`, `pagebreak`, `spacer` | Counter/Gaps style lines; page break; vertical space |
 
 ## New template

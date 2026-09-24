@@ -58,8 +58,9 @@ Fonts: the preview maps Gill Sans MT to Apple's Gill Sans; on Linux add the font
 
 A test on 24 September 2026: the same two-page brief given to a capable model with no pack produced a memo with 17
 em dashes, Title Case headings, a bold "VERDICT:" label, Word's Calibri, US Letter, python-docx as the author and no
-header or footer. The same brief through the pack produced the house look on A4 with the verdict in the teal bar,
-zero lint findings above INFO, and a page-1 that reads like the exemplar. The difference is not the model; it is
+header or footer. The same brief through the pack (a second run of the same model, reading only SKILL.md) produced the house look on A4,
+the verdict in the teal bar, full-sentence section headings, Counter and Gaps lines under each finding, a chart, a
+14-row evidence register, and one lint WARN (a false positive on "marks a"). The difference is not the model; it is
 the content-first order, the spec, the render-and-look loop and the lint.
 
 ## Adding a template

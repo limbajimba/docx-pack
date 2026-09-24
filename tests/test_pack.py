@@ -69,6 +69,27 @@ def test_set_metadata_roundtrip():
     assert d.core_properties.author == "Acme Co" and d.core_properties.last_modified_by == "Acme Co" and d.core_properties.title == "T"
 
 
+def test_build_dedupes_callout_labels_and_sets_metadata():
+    import shutil
+    d = Path(tempfile.mkdtemp())
+    content = json.load(open(ROOT / "examples" / "acme-content.json"))
+    content["blocks"] = [b for b in content["blocks"] if b["type"] != "image"]
+    for b in content["blocks"]:
+        if b["type"] == "finding":
+            b["counter"] = "Counter: " + b["counter"]
+    json.dump(content, open(d / "c.json", "w"))
+    shutil.copy(ROOT / "house" / "silvertree-logo.png", d / "silvertree-logo.png")
+    r = subprocess.run(["node", str(SCRIPTS / "build_docx.js"), "--spec", str(ROOT / "house" / "silvertree.style-spec.json"), "--content", str(d / "c.json"), "--out", str(d / "o.docx")], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    from docx import Document
+    doc = Document(str(d / "o.docx"))
+    texts = [p.text for p in doc.paragraphs if p.text.startswith("Counter:")]
+    assert texts and all(not t.startswith("Counter: Counter:") for t in texts)
+    assert doc.core_properties.author == "SilverTree Equity"
+    import zipfile
+    assert b"<Application>" in zipfile.ZipFile(str(d / "o.docx")).read("docProps/app.xml")
+
+
 def test_fill_template_uses_template_styles():
     from docx import Document
     t = make_docx(["template body"])
