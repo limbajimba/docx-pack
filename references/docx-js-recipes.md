@@ -96,7 +96,30 @@ PNG aspect ratio. The chart is a picture in Word, so every number on it must als
 ## Lists (`bullets`, `numbered`)
 
 `numbering.config` with `LevelFormat.BULLET` "•" (indent left 540, hanging 260) and `LevelFormat.DECIMAL` "%1.".
-Never type "•" or "1." into text. One sentence per item, after 60.
+Never type "•" or "1." into text. One sentence per item, after 60. Each `numbered` block restarts at 1 (its own
+numbering instance); `start: n` begins at n (a reference per start value, since docx-js writes the level's `start`
+as the instance's startOverride); `continue: true` joins the previous list. A source list with gaps (1-9, 12,
+14...) is one block per run of consecutive numbers, so Word shows the source's own numbers.
+
+## Long documents: title page, headings, contents, sources
+
+- `meta.word_headings: true` (or any `toc` block) makes `h1`/`h2`/`h3` real Heading 1-3 paragraphs. The styles
+  are redefined from the spec (font, size, navy, spacing, `outlineLevel`), so no Word blue; each heading is
+  wrapped in a `_Toc00001`-style bookmark. `page_break_before: true` on a heading starts it on a new page.
+  Off by default so documents built earlier keep their structure.
+- `title_page`: the title band set lower and larger (`components.title_page`), `kicker`, `title` (Title style),
+  `date`, `right_lines`, then `notes` paragraphs. Turns on `titlePg`: the first page footer drops the page number.
+- `toc`: a Word TOC field (`TOC \h \o "1-2" \u \z`, `levels` sets the depth) whose cached result is filled with
+  the headings, linked to their bookmarks, `dirty` false, so it reads correctly without an update prompt. Page
+  numbers come from `--toc-pages pages.json` (anchor to page); `--toc-out` writes the heading list. Measure pages
+  on a render (LibreOffice writes the headings as the PDF outline: PyMuPDF `get_toc()`), rebuild, repeat until no
+  entry moves. Styles `toc 1`-`toc 3` carry the look (right tab with dot leader at the text width).
+- `style: "sources"` on `p`, `bullets` or `numbered`: the named Sources paragraph style (`components.sources`,
+  8 pt, after 20-30, hanging indent), for a chapter's source list.
+- Text may be an array of spans `{text, bold, italic, link}`; a `link` span is an `ExternalHyperlink` in the
+  link colour. Table cells accept span arrays too.
+- `table`: tables of 12 rows or fewer (`components.table.keep_rows`, or `keep_together`) move as one piece:
+  `keepNext` on every row but the last.
 
 ## docx-js details that bite (docx 9.7)
 
@@ -113,5 +136,5 @@ Never type "•" or "1." into text. One sentence per item, after 60.
 - Document metadata: pass `creator`, `lastModifiedBy`, `title`, `description`; docx-js otherwise writes
   "Un-named". app.xml stays empty; `scripts/set_metadata.py` fills Application and Company.
 - All-caps is `allCaps: true` on the run; do not upper-case the string (search and copy break).
-- The `Heading1..6` styles docx-js writes by default carry Word's blue (2E74B5); the builder never uses them,
-  so a heading in that blue means a block bypassed the spec.
+- The `Heading1..6` styles docx-js writes by default carry Word's blue (2E74B5). The builder redefines them from
+  the spec (`styles.default.heading1..6`), so a heading in that blue means a block bypassed the spec.
