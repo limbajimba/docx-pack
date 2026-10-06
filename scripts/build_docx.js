@@ -11,12 +11,16 @@
 //   { "meta": { "title", "kicker", "date", "right_lines": [], "footer_title", "subject" },
 //     "blocks": [ ...see BLOCKS below... ] }
 // Inline text supports **bold** and *italic*; nothing else. No "\n" (use separate blocks).
+// Text may also be an array of spans [{text, bold, italic, link}] (a converter's output); a span with
+// `link` becomes an external hyperlink in the spec's link colour.
+// h1/h2/h3 are Word Heading 1-3 (styles take the spec's look, so the navigation pane and a TOC work);
+// `toc` inserts a table of contents built from them, with page numbers from --toc-pages pages.json.
 "use strict";
 const fs = require("fs"), path = require("path");
 const D = require("docx");
 const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, WidthType, AlignmentType,
         ShadingType, BorderStyle, PageBreak, LevelFormat, Header, Footer, PageNumber, TabStopType, Tab,
-        VerticalAlign, TableLayoutType } = D;
+        VerticalAlign, TableLayoutType, HeadingLevel, Bookmark, ExternalHyperlink, TableOfContents, PageOrientation } = D;
 
 // ---------- args
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, arr) => a.startsWith("--") ? [a.slice(2), arr[i + 1]] : []).filter(Boolean));
@@ -37,13 +41,23 @@ const HP = (k) => Math.round(PT(k) * 2);                                        
 const SP = spec.spacing_dxa, CMP = spec.components, FONT = spec.font.body;
 const PAGE = spec.page, M = PAGE.margins_dxa;
 const TEXT_W = PAGE.width_dxa - M.left - M.right;
+// landscape: spec gives the page as seen (width > height); docx-js wants portrait numbers plus the orientation flag and swaps them
+const LANDSCAPE = PAGE.orientation === "landscape";
+const PAGE_SIZE = LANDSCAPE
+  ? { width: Math.min(PAGE.width_dxa, PAGE.height_dxa), height: Math.max(PAGE.width_dxa, PAGE.height_dxa), orientation: PageOrientation.LANDSCAPE }
+  : { width: PAGE.width_dxa, height: PAGE.height_dxa };
 const cmToPx = (cm) => Math.round((cm * 360000) / 9525);
 const resolveAsset = (p) => [path.resolve(contentDir, p), path.resolve(specDir, p), path.resolve(p)].find((f) => fs.existsSync(f));
 
 // ---------- runs: **bold** and *italic* only
 function runs(text, o = {}) {
   const base = { font: FONT, size: HP(o.size || "body"), color: C(o.color || "ink"), bold: o.bold, italics: o.italic, allCaps: o.caps };
-  if (Array.isArray(text)) return text.map((t) => new TextRun({ ...base, ...t, size: t.size ? HP(t.size) : base.size, color: t.color ? C(t.color) : base.color, text: t.text }));
+  if (Array.isArray(text)) return text.map((t0) => {
+    const { link, italic, ...t } = typeof t0 === "string" ? { text: t0 } : t0;
+    const r = new TextRun({ ...base, ...t, italics: t.italics ?? italic ?? base.italics, size: t.size ? HP(t.size) : base.size,
+      color: link ? C(CMP.link?.color || "link") : t.color ? C(t.color) : base.color, underline: link && CMP.link?.underline !== false ? {} : undefined, text: t.text });
+    return link ? new ExternalHyperlink({ link, children: [r] }) : r;
+  });
   const out = [];
   const re = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
   let last = 0, m;
@@ -58,7 +72,8 @@ function runs(text, o = {}) {
   return out;
 }
 const P = (text, o = {}) => new Paragraph({
-  children: runs(text, o),
+  children: o.children || runs(text, o),
+  style: o.style, heading: o.heading, pageBreakBefore: o.pageBreakBefore, indent: o.indent,
   spacing: { before: o.before ?? 0, after: o.after ?? SP.body_after, line: o.line ?? SP.body_line },
   alignment: o.align, keepNext: o.keepNext, keepLines: o.keepLines,
   border: o.rule ? { bottom: { style: BorderStyle.SINGLE, color: C(o.rule.color), size: o.rule.sz, space: o.rule.space } } : undefined,
@@ -88,6 +103,32 @@ const table = (rows, widths, o = {}) => new Table({
 });
 const spacer = (after) => new Paragraph({ spacing: { before: 0, after, line: SP.body_line }, children: [] });
 const splitEven = (n, total) => { const w = Math.floor(total / n); const ws = Array(n).fill(w); ws[n - 1] += total - w * n; return ws; };
+const plain = (t) => (Array.isArray(t) ? t.map((x) => (typeof x === "string" ? x : x.text)).join("") : String(t ?? "").replace(/\*\*([^*]+)\*\*|\*([^*]+)\*/g, "$1$2"));
+
+// ---------- headings: Word Heading 1-3 with the spec's look, each bookmarked so a TOC entry can link to it
+const HEADING = { h1: HeadingLevel.HEADING_1, h2: HeadingLevel.HEADING_2, h3: HeadingLevel.HEADING_3 };
+const tocEntries = [];
+let tocSeq = 0, hasTitlePage = false;
+// Opt-in (meta.word_headings, or any toc block) so documents built before this change keep their structure.
+const WORD_HEADINGS = meta.word_headings ?? content.blocks.some((b) => b.type === "toc");
+function heading(kind, b, children) {
+  if (b.toc === false || !WORD_HEADINGS) return { children };  // looks like a heading, stays out of the outline and the TOC
+  const anchor = `_Toc${String(++tocSeq).padStart(5, "0")}`;
+  tocEntries.push({ level: +kind.slice(1), title: plain(b.text), anchor });
+  return { heading: HEADING[kind], children: [new Bookmark({ id: anchor, children })] };
+}
+
+// ---------- lists: every block restarts its numbering (continue: true joins the previous list); start sets the first number
+const listRefs = new Map();
+let listInstance = 0, lastNumbered = null;
+function listRef(kind, start, style) {
+  const ref = kind + (style === "sources" ? "-src" : "") + (kind === "numbers" && start !== 1 ? `-s${start}` : "");
+  if (!listRefs.has(ref)) listRefs.set(ref, { kind, start, style });
+  return ref;
+}
+// Sources style: the smaller paragraph style for a chapter's source list
+const SRC = { size: "caption", color: "ink", after: 30, line: 240, indent_left: 360, hanging: 360, list_indent_left: 400, list_hanging: 400, ...(CMP.sources || {}) };
+const listSpacing = (style) => (style === "sources" ? { before: 0, after: SRC.after, line: SRC.line } : { before: 0, after: 60, line: SP.body_line });
 
 // ---------- BLOCKS
 const B = {
@@ -116,6 +157,34 @@ const B = {
     ], ws[i], { fill: k.fill, margins: k.cell_margins, borders: bd }));
     return [table([new TableRow({ children: cells })], ws), spacer(SP.after_table)];
   },
+  // figure_grid: charts side by side, each with its caption (title, sources line, note) under it.
+  // cells: [{path, width_cm?, height_cm?, title, sources, note, span?}], cols (default 2)
+  figure_grid(b) {
+    const cols = b.cols || 2, gap = b.gap_dxa ?? 240, colW = splitEven(cols, TEXT_W);
+    const rows = [];
+    let cur = [], used = 0;
+    const flush = () => { if (!cur.length) return; if (used < cols) cur.push(cell([P("", { after: 0 })], colW.slice(used).reduce((a, x) => a + x, 0), { span: cols - used > 1 ? cols - used : undefined, margins: { top: 0, bottom: 0, left: 0, right: 0 } })); rows.push(new TableRow({ cantSplit: true, children: cur })); cur = []; used = 0; };
+    for (const c of b.cells) {
+      const span = Math.min(c.span || 1, cols);
+      if (used + span > cols) flush();
+      const w = colW.slice(used, used + span).reduce((a, x) => a + x, 0);
+      const f = resolveAsset(c.path);
+      if (!f) throw new Error(`figure not found: ${c.path}`);
+      const buf = fs.readFileSync(f), ratio = buf.readUInt32BE(20) / buf.readUInt32BE(16);
+      const maxCm = ((w - gap) / 1440) * 2.54, wcm = Math.min(c.width_cm || maxCm, maxCm), hcm = c.height_cm || wcm * ratio;
+      // no keepNext inside the grid: Word and LibreOffice then hold the whole table with the next block and leave the headline alone
+      const kids = [new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 0, after: 40 },
+        children: [new ImageRun({ type: "png", data: buf, transformation: { width: cmToPx(wcm), height: cmToPx(hcm) } })] })];
+      if (c.title) kids.push(P(c.title, { size: "small", color: "ink", bold: true, after: 10, line: 220 }));
+      if (c.sources) kids.push(P(c.sources, { size: "tiny", color: "muted", after: 10, line: 200 }));
+      if (c.note) kids.push(P(c.note, { size: "tiny", color: "muted", after: 0, line: 200 }));
+      cur.push(cell(kids, w, { span: span > 1 ? span : undefined, valign: VerticalAlign.TOP, margins: { top: 0, bottom: b.row_gap_dxa ?? 160, left: 0, right: gap } }));
+      used += span;
+      if (used === cols) flush();
+    }
+    flush();
+    return [table(rows, colW), spacer(SP.after_table)];
+  },
   image(b) {
     const f = resolveAsset(b.path);
     if (!f) throw new Error(`image not found: ${b.path}`);
@@ -127,19 +196,54 @@ const B = {
     if (b.caption) out.push(P(b.caption, { size: "small", color: "muted", after: SP.small_after, line: SP.small_line }));
     return out;
   },
-  h1(b) { const h = CMP.h1; return [P(b.text, { size: "h1", color: h.color, bold: h.bold, before: SP.h1_before, after: SP.h1_after, line: 240, rule: h.rule, keepNext: true })]; },
+  h1(b) {
+    const h = CMP.h1, kids = runs(b.text, { size: "h1", color: h.color, bold: h.bold });
+    return [P(null, { ...heading("h1", b, kids), before: b.page_break_before ? 0 : SP.h1_before, after: SP.h1_after, line: 240, rule: h.rule, keepNext: true, keepLines: true, pageBreakBefore: b.page_break_before })];
+  },
   h2(b) {
     const h = CMP.h2;
     const children = runs(b.text, { size: "h2", color: h.color, bold: h.bold });
     if (b.meta) children.push(new TextRun({ font: FONT, size: HP(h.meta_size), color: C(h.meta_color), children: [new Tab(), b.meta] }));
-    return [new Paragraph({ children, keepNext: true, spacing: { before: SP.h2_before, after: SP.h2_after, line: 240 },
+    return [new Paragraph({ ...heading("h2", b, children), keepNext: true, keepLines: true, pageBreakBefore: b.page_break_before,
+      spacing: { before: b.page_break_before ? 0 : SP.h2_before, after: SP.h2_after, line: 240 },
       tabStops: [{ type: TabStopType.RIGHT, position: TEXT_W }],
       border: h.rule ? { bottom: { style: BorderStyle.SINGLE, color: C(h.rule.color), size: h.rule.sz, space: h.rule.space } } : undefined })];
   },
-  h3(b) { const h = CMP.h3; return [P(b.text, { size: "h3", color: h.color, bold: h.bold, before: SP.h3_before, after: SP.h3_after, keepNext: true })]; },
-  p(b) { return [P(b.text, { size: b.size, color: b.color, after: b.after ?? (b.tight ? SP.tight_after : SP.body_after), align: b.align === "right" ? AlignmentType.RIGHT : undefined })]; },
-  bullets(b) { return b.items.map((t) => new Paragraph({ children: runs(t, { size: b.size }), numbering: { reference: "bullets", level: 0 }, spacing: { before: 0, after: 60, line: SP.body_line } })); },
-  numbered(b) { return b.items.map((t) => new Paragraph({ children: runs(t, { size: b.size }), numbering: { reference: "numbers", level: 0 }, spacing: { before: 0, after: 60, line: SP.body_line } })); },
+  h3(b) {
+    const h = CMP.h3, kids = runs(b.text, { size: "h3", color: h.color, bold: h.bold });
+    return [P(null, { ...heading("h3", b, kids), before: SP.h3_before, after: SP.h3_after, keepNext: true, keepLines: true })];
+  },
+  p(b) {
+    if (b.style === "sources") return [P(b.text, { style: "Sources", size: SRC.size, color: SRC.color, after: SRC.after, line: SRC.line, indent: { left: SRC.indent_left, hanging: SRC.hanging }, keepNext: b.keep_next })];
+    return [P(b.text, { size: b.size, color: b.color, after: b.after ?? (b.tight ? SP.tight_after : SP.body_after), align: b.align === "right" ? AlignmentType.RIGHT : undefined, keepNext: b.keep_next })];
+  },
+  bullets(b) {
+    const ref = listRef("bullets", 1, b.style), src = b.style === "sources";
+    return b.items.map((t) => new Paragraph({ style: src ? "Sources" : undefined, children: runs(t, { size: b.size || (src ? SRC.size : undefined), color: src ? SRC.color : undefined }), numbering: { reference: ref, level: 0 }, spacing: listSpacing(b.style) }));
+  },
+  numbered(b) {
+    const src = b.style === "sources";
+    const { ref, inst } = b.continue && lastNumbered ? lastNumbered : { ref: listRef("numbers", b.start || 1, b.style), inst: ++listInstance };
+    lastNumbered = { ref, inst };
+    return b.items.map((t) => new Paragraph({ style: src ? "Sources" : undefined, children: runs(t, { size: b.size || (src ? SRC.size : undefined), color: src ? SRC.color : undefined }), numbering: { reference: ref, level: 0, instance: inst }, spacing: listSpacing(b.style) }));
+  },
+  title_page(b) {
+    // A title page: the house title band, set lower and larger, then any notes. The TOC (or the next block) starts page 2.
+    const t = CMP.title_band, tp = { top_dxa: 2400, title_size: 20, kicker_size: 9, date_size: 11, line_size: 9, gap_dxa: 360, caps: true,
+      cell_margins: { top: 360, bottom: 360, left: 300, right: 200 }, ...(CMP.title_page || {}) };
+    const rw = t.right_col_dxa, lw = TEXT_W - rw;
+    const left = [
+      P(b.kicker || meta.kicker || "", { size: tp.kicker_size, color: t.text, bold: true, caps: true, after: 140, line: 240 }),
+      P(b.title || meta.title || "", { style: "Title", size: tp.title_size, color: t.text, bold: true, caps: tp.caps, after: 0, line: tp.title_line || 250 }),
+    ];
+    const right = [P(b.date || meta.date || "", { size: tp.date_size, color: t.text, bold: true, align: AlignmentType.RIGHT, after: 80, line: 240 })];
+    for (const l of b.right_lines || meta.right_lines || []) right.push(P(l, { size: tp.line_size, color: t.text, align: AlignmentType.RIGHT, after: 40, line: 240 }));
+    const out = [spacer(tp.top_dxa), table([new TableRow({ children: [cell(left, lw, { fill: t.fill, margins: tp.cell_margins, valign: VerticalAlign.CENTER }), cell(right, rw, { fill: t.fill, margins: tp.cell_margins, valign: VerticalAlign.CENTER })] })], [lw, rw]), spacer(tp.gap_dxa)];
+    for (const n of b.notes || []) out.push(P(n, { size: tp.note_size || "body", after: SP.body_after }));
+    hasTitlePage = true;
+    return out;
+  },
+  toc(b) { return [{ __toc: b }]; },  // filled after every heading is known
   snapshot(b) {
     const s = CMP.snapshot, lw = s.label_dxa, vw = TEXT_W - lw;
     const bd = { top: NONE, left: NONE, right: NONE, bottom: { style: BorderStyle.DOTTED, color: C(s.row_border.color), size: s.row_border.sz } };
@@ -157,14 +261,17 @@ const B = {
     const size = b.size || "table";
     const al = (a) => (a === "right" ? AlignmentType.RIGHT : a === "center" ? AlignmentType.CENTER : undefined);
     const bd = { top: NONE, left: NONE, right: NONE, bottom: { style: BorderStyle.DOTTED, color: C(t.row_border.color), size: t.row_border.sz } };
-    const head = new TableRow({ tableHeader: true, cantSplit: true, children: cols.map((c, i) => cell(P(c.header, { size, color: t.header_text, bold: true, after: 0, line: 240, align: al(c.align) }), ws[i], { fill: t.header_fill, margins: t.cell_margins })) });
+    // short tables move as one piece (keepNext on every row but the last); long ones may break between rows
+    const keep = b.keep_together ?? b.rows.length <= (t.keep_rows ?? 12);
+    const head = new TableRow({ tableHeader: true, cantSplit: true, children: cols.map((c, i) => cell(P(c.header, { size, color: t.header_text, bold: true, after: 0, line: 240, align: al(c.align), keepNext: true }), ws[i], { fill: t.header_fill, margins: t.cell_margins })) });
     let zebra = 0;
-    const body = b.rows.map((r) => {
-      if (r && r.group !== undefined) { zebra = 0; return new TableRow({ cantSplit: true, children: [cell(P(r.group, { size, color: t.group_text, bold: true, after: 0, line: 240 }), TEXT_W, { fill: t.group_fill, margins: t.cell_margins, span: cols.length })] }); }
+    const body = b.rows.map((r, ri) => {
+      const kn = keep && ri < b.rows.length - 1;
+      if (r && r.group !== undefined) { zebra = 0; return new TableRow({ cantSplit: true, children: [cell(P(r.group, { size, color: t.group_text, bold: true, after: 0, line: 240, keepNext: true }), TEXT_W, { fill: t.group_fill, margins: t.cell_margins, span: cols.length })] }); }
       const fill = zebra++ % 2 ? t.zebra : undefined;
       return new TableRow({ cantSplit: true, children: r.map((v, i) => {
-        const o = typeof v === "object" && v !== null ? v : { text: v };
-        return cell(P(String(o.text ?? ""), { size: o.size || cols[i].size || size, color: o.color, bold: o.bold ?? cols[i].bold, after: 0, line: 240, align: al(o.align || cols[i].align) }), ws[i], { fill, margins: t.cell_margins, borders: bd });
+        const o = Array.isArray(v) ? { text: v } : typeof v === "object" && v !== null ? v : { text: v };
+        return cell(P(Array.isArray(o.text) ? o.text : String(o.text ?? ""), { size: o.size || cols[i].size || size, color: o.color, bold: o.bold ?? cols[i].bold, after: 0, line: 240, align: al(o.align || cols[i].align), keepNext: kn }), ws[i], { fill, margins: t.cell_margins, borders: bd });
       }) });
     });
     const out = [table([head, ...body], ws)];
@@ -200,16 +307,32 @@ function header() {
   return new Header({ children: [new Paragraph({ children, tabStops: [{ type: TabStopType.RIGHT, position: TEXT_W }], spacing: { after: 60 },
     border: { bottom: { style: BorderStyle.SINGLE, color: C(h.rule.color), size: h.rule.sz, space: h.rule.space } } })] });
 }
-function footer() {
+function footer(first = false) {
   const f = spec.footer;
   const left = f.left.replace("{footer_title}", meta.footer_title || meta.title || "").replace("{org}", spec.org || "");
   const r = (t) => new TextRun({ font: FONT, size: HP("footer"), color: C("muted"), text: t });
+  const leftRun = new TextRun({ font: FONT, size: HP("footer"), color: C("muted"), italics: true, text: left });
+  const rule = { top: { style: BorderStyle.SINGLE, color: C(f.rule.color), size: f.rule.sz, space: f.rule.space } };
+  if (first) return new Footer({ children: [new Paragraph({ spacing: { before: 60 }, border: rule, children: [leftRun] })] });  // title page: no page number
   return new Footer({ children: [new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: TEXT_W }], spacing: { before: 60 },
-    border: { top: { style: BorderStyle.SINGLE, color: C(f.rule.color), size: f.rule.sz, space: f.rule.space } },
-    children: [new TextRun({ font: FONT, size: HP("footer"), color: C("muted"), italics: true, text: left }),
+    border: rule,
+    children: [leftRun,
       new TextRun({ font: FONT, size: HP("footer"), color: C("muted"), children: [new Tab(), "Page "] }),
       new TextRun({ font: FONT, size: HP("footer"), color: C("muted"), children: [PageNumber.CURRENT] }), r(" of "),
       new TextRun({ font: FONT, size: HP("footer"), color: C("muted"), children: [PageNumber.TOTAL_PAGES] })] })] });
+}
+
+// ---------- table of contents: a Word TOC field whose cached result is filled in, so it reads correctly before
+// anyone presses F9. Page numbers come from --toc-pages (a JSON map anchor -> page, e.g. measured on a render);
+// without it the entries carry no numbers until Word updates the field.
+const TOCS = { levels: 2, size1: "body", size2: 9.5, size3: 9, indent: 280, right_indent: 560, ...(CMP.toc || {}) };
+function buildToc(b) {
+  const max = b.levels || TOCS.levels;
+  const pages = args["toc-pages"] ? JSON.parse(fs.readFileSync(args["toc-pages"], "utf8")) : {};
+  class Toc extends TableOfContents { getTabStopsForLevel() { return [{ type: TabStopType.RIGHT, position: TEXT_W, leader: "dot" }]; } }
+  const entries = tocEntries.filter((e) => e.level <= max).map((e) => ({ title: e.title, level: e.level, page: pages[e.anchor] ?? "", href: e.anchor }));
+  const title = P(b.title || "Contents", { size: "h1", color: CMP.h1.color, bold: CMP.h1.bold, after: SP.h1_after, line: 240, rule: CMP.h1.rule, pageBreakBefore: b.page_break_before ?? hasTitlePage });
+  return [title, new Toc(b.title || "Contents", { hyperlink: true, headingStyleRange: `1-${max}`, hideTabAndPageNumbersInWebView: true, useAppliedParagraphOutlineLevel: true, cachedEntries: entries, beginDirty: false })];
 }
 
 // ---------- assemble
@@ -218,17 +341,52 @@ for (const b of content.blocks) {
   if (!B[b.type]) throw new Error(`unknown block type: ${b.type}`);
   children.push(...B[b.type](b));
 }
-const bl = CMP.bullets;
+for (let i = 0; i < children.length; i++) if (children[i] && children[i].__toc) children.splice(i, 1, ...buildToc(children[i].__toc));
+if (args["toc-out"]) fs.writeFileSync(args["toc-out"], JSON.stringify(tocEntries, null, 1));
+
+const bl = CMP.bullets, nl = { indent_left: bl.indent_left, hanging: bl.hanging, ...(CMP.numbered || {}) };
+const listLevel = (r) => {
+  const src = r.style === "sources";
+  const ind = src ? { left: SRC.list_indent_left, hanging: SRC.list_hanging } : r.kind === "bullets" ? { left: bl.indent_left, hanging: bl.hanging } : { left: nl.indent_left, hanging: nl.hanging };
+  return r.kind === "bullets"
+    ? { level: 0, format: LevelFormat.BULLET, text: bl.char, alignment: AlignmentType.LEFT, style: { paragraph: { indent: ind } } }
+    : { level: 0, format: LevelFormat.DECIMAL, text: "%1.", start: r.start, alignment: AlignmentType.LEFT, style: { paragraph: { indent: ind } } };
+};
+listRefs.set("bullets", { kind: "bullets", start: 1 }); listRefs.set("numbers", { kind: "numbers", start: 1 });
+const numberingConfig = [...listRefs].map(([reference, r]) => ({ reference, levels: [listLevel(r)] }));
+
+// Styles: headings take the spec's look (docx-js would otherwise write Word's blue); TOC and Sources styles are named
+// so a reader editing in Word finds them in the styles pane.
+const hstyle = (k, lvl) => ({ run: { font: FONT, size: HP(k), bold: CMP[k].bold, color: C(CMP[k].color) },
+  paragraph: { spacing: { before: SP[`${k}_before`], after: SP[`${k}_after`], line: 240 }, keepNext: true, keepLines: true, outlineLevel: lvl } });
+const minor = { run: { font: FONT, size: HP("body"), bold: true, color: C(CMP.h3.color) }, paragraph: { keepNext: true } };
+const tocStyle = (n, size, o = {}) => ({ id: `TOC${n}`, name: `toc ${n}`, basedOn: "Normal", next: "Normal", uiPriority: 39,
+  run: { font: FONT, size: HP(size), color: C(o.color || "ink"), bold: o.bold },
+  paragraph: { spacing: { before: o.before ?? 0, after: o.after ?? 40, line: 240 }, indent: { left: (n - 1) * TOCS.indent, right: TOCS.right_indent },
+    tabStops: [{ type: TabStopType.RIGHT, position: TEXT_W, leader: "dot" }] } });
+const docStyles = {
+  default: {
+    document: { run: { font: FONT, size: HP("body"), color: C("ink") } },
+    title: { run: { font: FONT, size: HP("title"), bold: true, color: C(CMP.h1.color) } },
+    heading1: hstyle("h1", 0), heading2: hstyle("h2", 1), heading3: hstyle("h3", 2), heading4: minor, heading5: minor, heading6: minor,
+    hyperlink: { run: { color: C(CMP.link?.color || "link"), underline: { type: "single" } } },
+  },
+  paragraphStyles: [
+    tocStyle(1, TOCS.size1, { bold: true, color: CMP.h1.color, before: 120 }), tocStyle(2, TOCS.size2), tocStyle(3, TOCS.size3),
+    { id: "Sources", name: "Sources", basedOn: "Normal", next: "Sources", quickFormat: true,
+      run: { font: FONT, size: HP(SRC.size), color: C(SRC.color) }, paragraph: { spacing: { before: 0, after: SRC.after, line: SRC.line } } },
+  ],
+  characterStyles: [{ id: "IndexLink", name: "Index Link", basedOn: "DefaultParagraphFont", run: {} }],
+};
+
 const doc = new Document({
   creator: spec.metadata.creator, lastModifiedBy: spec.metadata.lastModifiedBy, title: meta.title, subject: meta.subject, description: meta.subject, revision: 1,
-  styles: { default: { document: { run: { font: FONT, size: HP("body"), color: C("ink") } } } },
-  numbering: { config: [
-    { reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: bl.char, alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: bl.indent_left, hanging: bl.hanging } } } }] },
-    { reference: "numbers", levels: [{ level: 0, format: LevelFormat.DECIMAL, text: "%1.", alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: bl.indent_left, hanging: bl.hanging } } } }] },
-  ] },
+  styles: docStyles,
+  numbering: { config: numberingConfig },
   sections: [{
-    properties: { page: { size: { width: PAGE.width_dxa, height: PAGE.height_dxa }, margin: { top: M.top, right: M.right, bottom: M.bottom, left: M.left, header: M.header, footer: M.footer, gutter: 0 } } },
-    headers: { default: header() }, footers: { default: footer() }, children,
+    properties: { titlePage: hasTitlePage, page: { size: PAGE_SIZE, margin: { top: M.top, right: M.right, bottom: M.bottom, left: M.left, header: M.header, footer: M.footer, gutter: 0 } } },
+    headers: hasTitlePage ? { default: header(), first: header() } : { default: header() },
+    footers: hasTitlePage ? { default: footer(), first: footer(true) } : { default: footer() }, children,
   }],
 });
 Packer.toBuffer(doc).then((buf) => {
