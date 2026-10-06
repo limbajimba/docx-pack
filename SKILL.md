@@ -46,6 +46,16 @@ Pack root: `~/Projects/docx-pack` (this file's directory). Run scripts from the 
 | `table` | `columns [{header,width,align,bold}]`, `rows` of strings or `{text,color,bold,align}`, `{group}` rows, `note`, `size: table_small` |
 | `finding` | `code, title, meta, body, counter, gaps` composed from h2 + p + callouts; `counter`/`gaps` carry the sentence only, the builder adds the label |
 | `callout`, `pagebreak`, `spacer` | Counter/Gaps style lines; page break; vertical space |
+| `figure_grid` | charts side by side: `cells [{path, title, sources, note, span}]`, `cols`; used by the visual fact pack |
+
+## Visual fact pack (landscape charts companion to a fact pack)
+
+`python3 scripts/build_visual_pack.py --plan plan.json --out out.docx` renders a plan's panels with the chart
+library in `scripts/viz/` (bar_line, multi_line, range_vs_actual, stacked_share, small_multiples, kpi_tiles,
+timeline_lanes, dot_rank, confidence_grid, sankey, org_chart, logo_wall) on `house/silvertree-landscape.style-spec.json`.
+Every chart returns its source tags and lowest confidence for the caption; the build fails on banned words and on
+headline numbers not found in the cited facts, and drops empty panels. The per-deal data module and plan templates,
+and the worked example, live with the sdd-pack skill (deal material stays out of this repo).
 
 ## New template
 
