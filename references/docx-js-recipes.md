@@ -138,3 +138,14 @@ as the instance's startOverride); `continue: true` joins the previous list. A so
 - All-caps is `allCaps: true` on the run; do not upper-case the string (search and copy break).
 - The `Heading1..6` styles docx-js writes by default carry Word's blue (2E74B5). The builder redefines them from
   the spec (`styles.default.heading1..6`), so a heading in that blue means a block bypassed the spec.
+
+## Landscape pages and side-by-side charts
+
+- `page.orientation: "landscape"` in the spec (see `house/silvertree-landscape.style-spec.json`: width 16838, height
+  11906 dxa). The builder passes portrait numbers plus `PageOrientation.LANDSCAPE`, as docx-js swaps them; the
+  written `w:pgSz` is w=16838, h=11906, orient=landscape. TEXT_W still comes from `width_dxa`.
+- `figure_grid`: a borderless table, one cell per chart (`path`, `title`, `sources`, `note`, `span`), `cols`
+  (default 2). Rows are `cantSplit`. No `keepNext` inside the cells: Word and LibreOffice would then hold the
+  whole table with the next block and strand the heading above it on its own page.
+- Start each page of a chart pack with `h1` and `page_break_before: true`, not a separate `pagebreak` block, so a
+  page that fills exactly does not leave a blank page behind it.

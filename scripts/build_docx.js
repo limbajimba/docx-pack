@@ -20,7 +20,7 @@ const fs = require("fs"), path = require("path");
 const D = require("docx");
 const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell, WidthType, AlignmentType,
         ShadingType, BorderStyle, PageBreak, LevelFormat, Header, Footer, PageNumber, TabStopType, Tab,
-        VerticalAlign, TableLayoutType, HeadingLevel, Bookmark, ExternalHyperlink, TableOfContents } = D;
+        VerticalAlign, TableLayoutType, HeadingLevel, Bookmark, ExternalHyperlink, TableOfContents, PageOrientation } = D;
 
 // ---------- args
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, arr) => a.startsWith("--") ? [a.slice(2), arr[i + 1]] : []).filter(Boolean));
@@ -41,6 +41,11 @@ const HP = (k) => Math.round(PT(k) * 2);                                        
 const SP = spec.spacing_dxa, CMP = spec.components, FONT = spec.font.body;
 const PAGE = spec.page, M = PAGE.margins_dxa;
 const TEXT_W = PAGE.width_dxa - M.left - M.right;
+// landscape: spec gives the page as seen (width > height); docx-js wants portrait numbers plus the orientation flag and swaps them
+const LANDSCAPE = PAGE.orientation === "landscape";
+const PAGE_SIZE = LANDSCAPE
+  ? { width: Math.min(PAGE.width_dxa, PAGE.height_dxa), height: Math.max(PAGE.width_dxa, PAGE.height_dxa), orientation: PageOrientation.LANDSCAPE }
+  : { width: PAGE.width_dxa, height: PAGE.height_dxa };
 const cmToPx = (cm) => Math.round((cm * 360000) / 9525);
 const resolveAsset = (p) => [path.resolve(contentDir, p), path.resolve(specDir, p), path.resolve(p)].find((f) => fs.existsSync(f));
 
@@ -151,6 +156,34 @@ const B = {
       P(it.note || "", { size: "small", color: k.note, after: 0, line: 220, keepNext: true }),
     ], ws[i], { fill: k.fill, margins: k.cell_margins, borders: bd }));
     return [table([new TableRow({ children: cells })], ws), spacer(SP.after_table)];
+  },
+  // figure_grid: charts side by side, each with its caption (title, sources line, note) under it.
+  // cells: [{path, width_cm?, height_cm?, title, sources, note, span?}], cols (default 2)
+  figure_grid(b) {
+    const cols = b.cols || 2, gap = b.gap_dxa ?? 240, colW = splitEven(cols, TEXT_W);
+    const rows = [];
+    let cur = [], used = 0;
+    const flush = () => { if (!cur.length) return; if (used < cols) cur.push(cell([P("", { after: 0 })], colW.slice(used).reduce((a, x) => a + x, 0), { span: cols - used > 1 ? cols - used : undefined, margins: { top: 0, bottom: 0, left: 0, right: 0 } })); rows.push(new TableRow({ cantSplit: true, children: cur })); cur = []; used = 0; };
+    for (const c of b.cells) {
+      const span = Math.min(c.span || 1, cols);
+      if (used + span > cols) flush();
+      const w = colW.slice(used, used + span).reduce((a, x) => a + x, 0);
+      const f = resolveAsset(c.path);
+      if (!f) throw new Error(`figure not found: ${c.path}`);
+      const buf = fs.readFileSync(f), ratio = buf.readUInt32BE(20) / buf.readUInt32BE(16);
+      const maxCm = ((w - gap) / 1440) * 2.54, wcm = Math.min(c.width_cm || maxCm, maxCm), hcm = c.height_cm || wcm * ratio;
+      // no keepNext inside the grid: Word and LibreOffice then hold the whole table with the next block and leave the headline alone
+      const kids = [new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 0, after: 40 },
+        children: [new ImageRun({ type: "png", data: buf, transformation: { width: cmToPx(wcm), height: cmToPx(hcm) } })] })];
+      if (c.title) kids.push(P(c.title, { size: "small", color: "ink", bold: true, after: 10, line: 220 }));
+      if (c.sources) kids.push(P(c.sources, { size: "tiny", color: "muted", after: 10, line: 200 }));
+      if (c.note) kids.push(P(c.note, { size: "tiny", color: "muted", after: 0, line: 200 }));
+      cur.push(cell(kids, w, { span: span > 1 ? span : undefined, valign: VerticalAlign.TOP, margins: { top: 0, bottom: b.row_gap_dxa ?? 160, left: 0, right: gap } }));
+      used += span;
+      if (used === cols) flush();
+    }
+    flush();
+    return [table(rows, colW), spacer(SP.after_table)];
   },
   image(b) {
     const f = resolveAsset(b.path);
@@ -351,7 +384,7 @@ const doc = new Document({
   styles: docStyles,
   numbering: { config: numberingConfig },
   sections: [{
-    properties: { titlePage: hasTitlePage, page: { size: { width: PAGE.width_dxa, height: PAGE.height_dxa }, margin: { top: M.top, right: M.right, bottom: M.bottom, left: M.left, header: M.header, footer: M.footer, gutter: 0 } } },
+    properties: { titlePage: hasTitlePage, page: { size: PAGE_SIZE, margin: { top: M.top, right: M.right, bottom: M.bottom, left: M.left, header: M.header, footer: M.footer, gutter: 0 } } },
     headers: hasTitlePage ? { default: header(), first: header() } : { default: header() },
     footers: hasTitlePage ? { default: footer(), first: footer(true) } : { default: footer() }, children,
   }],

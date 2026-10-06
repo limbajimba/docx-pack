@@ -103,6 +103,32 @@ def test_fill_template_uses_template_styles():
     assert len(d.tables) >= 3
 
 
+def test_landscape_figure_grid():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    d = Path(tempfile.mkdtemp())
+    for n in (1, 2):
+        fig, ax = plt.subplots(figsize=(4, 2)); ax.plot([1, 2], [n, 1]); fig.savefig(d / f"c{n}.png"); plt.close(fig)
+    content = {"meta": {"title": "T", "kicker": "K", "date": "1 Jan 2026"}, "blocks": [
+        {"type": "h1", "text": "Page one"},
+        {"type": "figure_grid", "cols": 2, "cells": [
+            {"path": str(d / "c1.png"), "title": "One", "sources": "Sources: F1", "note": "n"},
+            {"path": str(d / "c2.png"), "title": "Two", "sources": "Sources: F2"}]}]}
+    (d / "c.json").write_text(json.dumps(content))
+    out = d / "l.docx"
+    r = subprocess.run(["node", str(SCRIPTS / "build_docx.js"), "--spec", str(ROOT / "house" / "silvertree-landscape.style-spec.json"),
+                        "--content", str(d / "c.json"), "--out", str(out)], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    import zipfile
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode()
+    assert 'w:orient="landscape"' in xml and 'w:w="16838"' in xml and 'w:h="11906"' in xml, xml[-600:]
+    from docx import Document
+    doc = Document(str(out))
+    cells = [c for t in doc.tables for row in t.rows for c in row.cells]
+    assert sum(1 for c in cells if c._tc.xpath(".//w:drawing")) == 2
+
+
 if __name__ == "__main__":  # plain runner when pytest is not installed
     import traceback
     fails = 0
