@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Render a .docx to PDF and page JPEGs so the pages can be looked at (Read tool) before sending.
+# Render a .docx (or a .pptx) to PDF and page JPEGs so the pages can be looked at (Read tool) before sending.
 #
 # Usage: bash scripts/render_preview.sh out.docx [outdir] [dpi]
 # Prints: page count, the JPEG paths, and a font-substitution warning when LibreOffice
@@ -41,7 +41,8 @@ echo "pages: $PAGES"
 echo "pdf:   $PDF"
 ls "$OUT/$STEM"-page-*.jpg
 
-# Font check: what the document asks for vs what the PDF embeds
+# Font check: what the document asks for vs what the PDF embeds. It reads Word XML, so it runs on .docx only.
+case "$DOC" in *.docx|*.dotx) ;; *) echo "font check: skipped (not a .docx)"; exit 0 ;; esac
 WANT=$(unzip -p "$DOC" word/styles.xml word/document.xml 2>/dev/null | grep -o 'w:ascii="[^"]*"' | sort | uniq -c | sort -rn | head -3 | sed 's/.*w:ascii="\([^"]*\)"/\1/' | paste -sd ',' -)
 GOT=$(pdffonts "$PDF" 2>/dev/null | tail -n +3 | awk '{print $1}' | sed 's/^[A-Z]*+//' | sed 's/[-,].*//' | sort -u | paste -sd ',' -)
 echo "fonts requested: $WANT"
