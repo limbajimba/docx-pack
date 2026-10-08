@@ -129,6 +129,27 @@ def test_landscape_figure_grid():
     assert sum(1 for c in cells if c._tc.xpath(".//w:drawing")) == 2
 
 
+
+def test_chart_bars_tick_step():
+    import chart_bars
+    assert chart_bars.x_ticks({"max": 10}) == [0, 2, 4, 6, 8, 10]
+    assert chart_bars.x_ticks({"max": 600, "step": 100}) == [0, 100, 200, 300, 400, 500, 600]
+
+
+def test_render_preview_accepts_pptx():
+    import shutil
+    if not (shutil.which("soffice") and shutil.which("pdftoppm")):
+        print("skip: soffice or pdftoppm missing"); return
+    from pptx import Presentation
+    d = Path(tempfile.mkdtemp())
+    prs = Presentation(); s = prs.slides.add_slide(prs.slide_layouts[5]); s.shapes.title.text = "One slide"
+    prs.save(d / "deck.pptx")
+    r = subprocess.run(["bash", str(SCRIPTS / "render_preview.sh"), str(d / "deck.pptx"), str(d / "prev"), "40"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (d / "prev" / "deck.pdf").exists()
+    assert "pages: 1" in r.stdout
+
 if __name__ == "__main__":  # plain runner when pytest is not installed
     import traceback
     fails = 0

@@ -7,7 +7,8 @@ status colour, direct value labels, optional threshold line. No legend (single s
 Usage:
   python3 chart_bars.py --spec house/silvertree.style-spec.json --data data.json --out chart.png
 data.json: {"title": "...", "rows": [{"label": "A1 ...", "value": 7.0, "flag": false}, ...],
-            "max": 10, "threshold": 7.0, "threshold_label": "7.0 Solid floor"}
+            "max": 10, "step": 2, "threshold": 7.0, "threshold_label": "7.0 Solid floor"}
+"step" sets the x-axis tick spacing (default 2); use e.g. 100 for values in $m.
 """
 import argparse, json
 import matplotlib
@@ -22,6 +23,10 @@ def pick_font(preferred):
         if n in names:
             return n
     return "DejaVu Sans"
+
+
+def x_ticks(data):
+    return list(range(0, int(data.get("max", 10)) + 1, int(data.get("step", 2))))
 
 
 def main():
@@ -53,7 +58,7 @@ def main():
         if r.get("flag"):
             tick.set_fontweight("bold")
     ax.set_xlim(0, data.get("max", 10))
-    ax.set_xticks(range(0, int(data.get("max", 10)) + 1, 2))
+    ax.set_xticks(x_ticks(data))
     ax.tick_params(axis="x", colors=muted, labelsize=8, length=0)
     ax.tick_params(axis="y", length=0)
     for s in ("top", "right", "left"):
